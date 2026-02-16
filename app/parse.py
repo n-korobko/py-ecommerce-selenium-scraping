@@ -1,5 +1,4 @@
 import csv
-import time
 from dataclasses import dataclass
 from urllib.parse import urljoin
 
@@ -39,20 +38,21 @@ def accept_cookies(driver: webdriver.Chrome) -> None:
 
 def parse_single_page(driver: webdriver.Chrome, url: str) -> list[Product]:
     driver.get(url)
-
     accept_cookies(driver)
 
-    products: list[Product] = []
-
-    # wait until products appear
     WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.CLASS_NAME, "thumbnail"))
     )
 
+    products: list[Product] = []
+    processed_count = 0
+
     while True:
         items = driver.find_elements(By.CLASS_NAME, "thumbnail")
 
-        for item in items:
+        new_items = items[processed_count:]
+
+        for item in new_items:
             title = item.find_element(By.CLASS_NAME, "title").get_attribute("title")
             description = item.find_element(By.CLASS_NAME, "description").text
 
@@ -74,16 +74,15 @@ def parse_single_page(driver: webdriver.Chrome, url: str) -> list[Product]:
                 )
             )
 
-        # try clicking "More" button (pagination)
+        processed_count = len(items)
+
         try:
             more_button = driver.find_element(By.CLASS_NAME, "btn-primary")
             more_button.click()
 
             WebDriverWait(driver, 5).until(
-                EC.staleness_of(items[-1])
+                lambda d: len(d.find_elements(By.CLASS_NAME, "thumbnail")) > processed_count
             )
-
-            time.sleep(0.5)
 
         except Exception:
             break
